@@ -1,0 +1,144 @@
+/* css/themes.css */
+:root {
+    --bg: #ffffff;
+    --text: #000000;
+    --accent: #f4f4f4;
+    --border: #000000;
+    --hover-bg: #000000;
+    --hover-text: #ffffff;
+    --panel: #ffffff;
+    --toolbar: #000000;
+    --toolbar-fg: #ffffff;
+}
+
+[data-theme="dark"] {
+    --bg: #1a1a1a;
+    --text: #e0e0e0;
+    --accent: #2a2a2a;
+    --border: #444444;
+    --hover-bg: #e0e0e0;
+    --hover-text: #1a1a1a;
+    --panel: #222222;
+    --toolbar: #111111;
+    --toolbar-fg: #ffffff;
+}
+
+[data-theme="sepia"] {
+    --bg: #f4ecd8;
+    --text: #5c4a3a;
+    --accent: #e8dcc0;
+    --border: #8b7355;
+    --hover-bg: #5c4a3a;
+    --hover-text: #f4ecd8;
+    --panel: #fdf5e6;
+    --toolbar: #5c4a3a;
+    --toolbar-fg: #ffffff;
+}
+
+[data-theme="forest"] {
+    --bg: #2c3e2c;
+    --text: #d0d9c0;
+    --accent: #3f5e3f;
+    --border: #7a9e7a;
+    --hover-bg: #7a9e7a;
+    --hover-text: #1f2a1f;
+    --panel: #2f4a2f;
+    --toolbar: #1f2f1f;
+    --toolbar-fg: #d0d9c0;
+}
+
+[data-theme="ocean"] {
+    --bg: #003366;
+    --text: #cce6ff;
+    --accent: #004080;
+    --border: #3385ff;
+    --hover-bg: #3385ff;
+    --hover-text: #001a33;
+    --panel: #002244;
+    --toolbar: #001122;
+    --toolbar-fg: #cce6ff;
+}
+
+[data-theme="highcontrast"] {
+    --bg: #000000;
+    --text: #ffff00;
+    --accent: #333333;
+    --border: #ffff00;
+    --hover-bg: #ffff00;
+    --hover-text: #000000;
+    --panel: #111111;
+    --toolbar: #000000;
+    --toolbar-fg: #ffff00;
+}
+
+[data-theme="vintage"] {
+    --bg: #f2e6d8;
+    --text: #4f3a2b;
+    --accent: #e0cdb8;
+    --border: #a68a6d;
+    --hover-bg: #4f3a2b;
+    --hover-text: #f2e6d8;
+    --panel: #eae0d5;
+    --toolbar: #4f3a2b;
+    --toolbar-fg: #f2e6d8;
+}
+
+[data-theme="monochrome"] {
+    --bg: #eeeeee;
+    --text: #222222;
+    --accent: #dddddd;
+    --border: #888888;
+    --hover-bg: #222222;
+    --hover-text: #eeeeee;
+    --panel: #e4e4e4;
+    --toolbar: #333333;
+    --toolbar-fg: #ffffff;
+}
+
+[data-theme="dracula"] {
+    --bg: #282a36;
+    --text: #f8f8f2;
+    --accent: #44475a;
+    --border: #bd93f9;
+    --hover-bg: #bd93f9;
+    --hover-text: #282a36;
+    --panel: #282a36;
+    --toolbar: #191a21;
+    --toolbar-fg: #f8f8f2;
+}
+
+[data-theme="solarizedlight"] {
+    --bg: #fdf6e3;
+    --text: #657b83;
+    --accent: #eee8d5;
+    --border: #93a1a1;
+    --hover-bg: #93a1a1;
+    --hover-text: #fdf6e3;
+    --panel: #fdf6e3;
+    --toolbar: #eee8d5;
+    --toolbar-fg: #586e75;
+}
+
+[data-theme="solarizeddark"] {
+    --bg: #002b36;
+    --text: #839496;
+    --accent: #073642;
+    --border: #586e75;
+    --hover-bg: #586e75;
+    --hover-text: #002b36;
+    --panel: #002b36;
+    --toolbar: #073642;
+    --toolbar-fg: #93a1a1;
+}
+
+[data-theme="cyberpunk"] {
+    --bg: #0f0f1b;
+    --text: #00ffcc;
+    --accent: #1a1a2e;
+    --border: #ff00ff;
+    --hover-bg: #ff00ff;
+    --hover-text: #0f0f1b;
+    --panel: #0f0f1b;
+    --toolbar: #05050a;
+    --toolbar-fg: #ff00ff;
+}

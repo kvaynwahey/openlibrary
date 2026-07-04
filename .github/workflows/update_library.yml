@@ -1,0 +1,245 @@
+name: Archive Auto-Update
+on:
+  push:
+    paths:
+      - 'books/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y calibre zip unzip
+
+      - name: Convert RTF to EPUB with custom front page
+        run: |
+          python3 << 'PYEOF'
+          import os, re, json, subprocess, shutil, zipfile
+
+          books_dir = 'books'
+          data_file = 'data.js'
+          if not os.path.exists(books_dir):
+              os.makedirs(books_dir)
+
+          # ── Helpers ────────────────────────────────────────────────────────
+
+          def get_tag(filename, tag):
+              m = re.search(rf'{tag}=\[(.*?)\]', filename, re.IGNORECASE)
+              return m.group(1).strip() if m else 'N/A'
+
+          def build_front_page_html(title, author, year):
+              pub_line  = f'<p class="meta">Published: {year}</p>'  if year  not in ('N/A', '0000', '') else ''
+              auth_line = f'<p class="meta">Author: {author}</p>'   if author not in ('N/A', '')        else ''
+              return f'''<?xml version="1.0" encoding="utf-8"?>
+          <!DOCTYPE html>
+          <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+          <head>
+            <meta charset="utf-8"/>
+            <title></title>
+            <style>
+              body {{
+                font-family: "Public Sans", Arial, sans-serif;
+                margin: 0; padding: 0;
+                display: flex; align-items: center; justify-content: center;
+                min-height: 100vh; background: #fff;
+              }}
+              .front {{ text-align: left; padding: 4em 3em; max-width: 480px; }}
+              h1 {{
+                font-size: 2.2em; font-weight: 700;
+                margin: 0 0 2em 0; line-height: 1.2;
+              }}
+              .meta {{
+                font-size: 0.95em; font-weight: 400;
+                color: #333; margin: 0.3em 0;
+              }}
+            </style>
+          </head>
+          <body>
+            <div class="front">
+              <h1>{title}</h1>
+              {pub_line}
+              {auth_line}
+            </div>
+          </body>
+          </html>'''
+
+          def inject_front_page(epub_path, front_html):
+              """
+              Unpack EPUB, prepend front-matter page as first spine item,
+              strip all metadata from OPF so no title/author leaks through.
+              """
+              tmp_dir = epub_path + '_tmp'
+              if os.path.exists(tmp_dir):
+                  shutil.rmtree(tmp_dir)
+              os.makedirs(tmp_dir)
+
+              with zipfile.ZipFile(epub_path, 'r') as z:
+                  z.extractall(tmp_dir)
+
+              # Find OPF
+              opf_rel = None
+              container = os.path.join(tmp_dir, 'META-INF', 'container.xml')
+              if os.path.exists(container):
+                  with open(container, 'r', encoding='utf-8') as f:
+                      m = re.search(r'full-path="([^"]+\.opf)"', f.read())
+                      if m: opf_rel = m.group(1)
+              if not opf_rel:
+                  for root, _, files in os.walk(tmp_dir):
+                      for fn in files:
+                          if fn.endswith('.opf'):
+                              opf_rel = os.path.relpath(os.path.join(root, fn), tmp_dir)
+                              break
+
+              if not opf_rel:
+                  print('  Warning: OPF not found, skipping injection.')
+                  shutil.rmtree(tmp_dir)
+                  return
+
+              opf_path  = os.path.join(tmp_dir, opf_rel)
+              opf_dir   = os.path.dirname(opf_path)
+
+              # Write front matter
+              front_path = os.path.join(opf_dir, 'front-matter.xhtml')
+              with open(front_path, 'w', encoding='utf-8') as f:
+                  f.write(front_html)
+
+              # Patch OPF
+              with open(opf_path, 'r', encoding='utf-8') as f:
+                  opf = f.read()
+
+              # Wipe all metadata fields
+              for tag in ('title', 'creator', 'description', 'publisher', 'date', 'subject', 'rights', 'language'):
+                  opf = re.sub(rf'<dc:{tag}[^>]*>.*?</dc:{tag}>', '', opf, flags=re.DOTALL)
+              opf = re.sub(r'<meta[^>]+(?:title-type|display-seq|file-as)[^/]*/>', '', opf)
+
+              # Add to manifest
+              opf = re.sub(
+                  r'(<manifest[^>]*>)',
+                  r'\1\n    <item id="front-matter" href="front-matter.xhtml" media-type="application/xhtml+xml"/>',
+                  opf, count=1
+              )
+              # Prepend to spine
+              opf = re.sub(
+                  r'(<spine[^>]*>)',
+                  r'\1\n    <itemref idref="front-matter"/>',
+                  opf, count=1
+              )
+
+              with open(opf_path, 'w', encoding='utf-8') as f:
+                  f.write(opf)
+
+              # Repack — mimetype must be first and uncompressed
+              os.remove(epub_path)
+              with zipfile.ZipFile(epub_path, 'w', zipfile.ZIP_DEFLATED) as z:
+                  mime = os.path.join(tmp_dir, 'mimetype')
+                  if os.path.exists(mime):
+                      z.write(mime, 'mimetype', compress_type=zipfile.ZIP_STORED)
+                  for root, _, files in os.walk(tmp_dir):
+                      for fn in files:
+                          fp = os.path.join(root, fn)
+                          arcname = os.path.relpath(fp, tmp_dir)
+                          if arcname == 'mimetype': continue
+                          z.write(fp, arcname)
+
+              shutil.rmtree(tmp_dir)
+              print('  Front page injected, metadata wiped.')
+
+          # ── Main loop ──────────────────────────────────────────────────────
+
+          existing_db = []
+          if os.path.exists(data_file):
+              with open(data_file, 'r', encoding='utf-8') as f:
+                  m = re.search(r'archiveData\s*=\s*(\[.*?\]);', f.read(), re.DOTALL)
+                  if m:
+                      try: existing_db = json.loads(m.group(1))
+                      except: pass
+
+          known_books = {b.get('base', ''): b for b in existing_db}
+          processed_bases = {}
+
+          # Accept RTF (Google Docs "Rich Text Document" export)
+          rtf_files = sorted([f for f in os.listdir(books_dir) if f.lower().endswith('.rtf')])
+
+          for f in rtf_files:
+              old_path  = os.path.join(books_dir, f)
+              base_name = os.path.splitext(f)[0]
+
+              title  = get_tag(f, 'Title')
+              author = get_tag(f, 'Author')
+              year   = get_tag(f, 'Year')
+
+              if title == 'N/A' and author == 'N/A':
+                  clean_base = base_name
+                  if clean_base in known_books:
+                      title  = known_books[clean_base].get('t', 'Unknown')
+                      author = known_books[clean_base].get('a', 'Unknown')
+                      year   = known_books[clean_base].get('y', 'N/A')
+                  else:
+                      title = base_name.replace('-', ' ').title()
+              else:
+                  clean_base = re.sub(r'[^a-zA-Z0-9]+', '-', f'{title} {year}').strip('-').lower()
+
+              new_filename = f'{clean_base}.rtf'
+              new_path     = os.path.join(books_dir, new_filename)
+              if old_path != new_path and not os.path.exists(new_path):
+                  os.rename(old_path, new_path)
+
+              epub_path = os.path.join(books_dir, f'{clean_base}.epub')
+              if os.path.exists(epub_path):
+                  print(f'  Skipping {clean_base} — EPUB already exists.')
+              else:
+                  print(f'Processing: {new_filename}')
+
+                  # Convert RTF → EPUB (Calibre handles RTF natively)
+                  subprocess.run([
+                      'ebook-convert', new_path, epub_path,
+                      '--enable-heuristics',
+                      '--no-default-epub-cover',
+                      '--title', ' ',
+                      '--authors', ' ',
+                      '--margin-top', '36',
+                      '--margin-bottom', '36',
+                      '--margin-left', '36',
+                      '--margin-right', '36',
+                  ], check=False)
+
+                  # Inject front page + wipe metadata
+                  if os.path.exists(epub_path):
+                      front_html = build_front_page_html(title, author, year)
+                      inject_front_page(epub_path, front_html)
+
+              if clean_base not in processed_bases:
+                  processed_bases[clean_base] = {'t': title, 'a': author, 'y': year, 'base': clean_base}
+
+          # Final DB
+          final_db = []
+          for base, data in processed_bases.items():
+              data['rtf']  = os.path.exists(os.path.join(books_dir, f'{base}.rtf'))
+              data['epub'] = os.path.exists(os.path.join(books_dir, f'{base}.epub'))
+              final_db.append(data)
+
+          # Preserve existing non-RTF entries
+          existing_bases = {d['base'] for d in final_db}
+          for b in existing_db:
+              if b.get('base') not in existing_bases:
+                  final_db.append(b)
+
+          with open(data_file, 'w', encoding='utf-8') as f:
+              f.write('archiveData = ' + json.dumps(final_db) + ';')
+
+          print('Done.')
+          PYEOF
+
+      - name: Commit and Push
+        run: |
+          git config --global user.name 'Archive-Bot'
+          git config --global user.email 'bot@github.com'
+          git add --all data.js books/
+          git commit -m "Auto-converted RTF → EPUB with front page" || exit 0
+          git push
