@@ -333,10 +333,11 @@
                     if (ch !== currentLetter) { currentLetter = ch; htmlRows.push(`<tr><td colspan="4" class="letter-divider">${ch}</td></tr>`); }
                 }
 
-                const epubLink = book.epub ? `reader.html?file=${encodeURIComponent('books/' + book.base + '.epub')}` : null;
+                const epubLink = book.epub ? `reader.html?file=${encodeURIComponent('books/' + book.base + '.epub')}&title=${encodeURIComponent(book.t)}` : null;
                 let actionsHtml = '<div class="action-buttons">';
                 
                 if (epubLink) actionsHtml += `<a href="${epubLink}" class="action-btn read">Read</a>`;
+                if (book.epub) actionsHtml += `<a href="books/${encodeURIComponent(book.base + '.epub')}" download class="action-btn">EPUB</a>`;
                 if (book.rtf) actionsHtml += `<a href="books/${encodeURIComponent(book.base + '.rtf')}" download class="action-btn">RTF</a>`;
 
                 if (downloadMode) {
