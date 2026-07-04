@@ -1,6 +1,6 @@
 # 📚 Universal Book Archive
 
-A digital library archive for classic public domain literature that works **anywhere** - GitHub Pages, your own website, or any web server. This open-source project provides a searchable, filterable interface with built-in EPUB reading capabilities.
+A digital library archive for books that work **anywhere** - GitHub Pages, your own website, or any web server. This open-source project provides a searchable, filterable interface with built-in EPUB reading capabilities.
 
 ## ✨ Features
 
