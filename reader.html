@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <title>Reader</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="css/themes.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: "Courier New", Courier, monospace;
+            background: var(--bg); color: var(--text);
+            height: 100dvh; display: flex; flex-direction: column;
+            overflow: hidden; user-select: none; -webkit-user-select: none;
+        }
+
+        #toolbar {
+            min-height: 52px; background: var(--toolbar); color: var(--toolbar-fg);
+            display: flex; align-items: center; gap: 6px;
+            padding: 0 12px; flex-shrink: 0; z-index: 100;
+            padding-top: env(safe-area-inset-top);
+        }
+        .btn {
+            background: none; border: 1px solid rgba(255,255,255,0.4); color: #fff;
+            font-family: inherit; font-size: 0.78em; padding: 5px 10px;
+            cursor: pointer; border-radius: 3px; white-space: nowrap;
+            transition: background .15s, color .15s; text-decoration: none; flex-shrink: 0;
+        }
+        .btn:hover, .btn.on { background: #fff; color: #000; }
+        #title-display {
+            flex: 1; text-align: center; font-size: 0.8em; letter-spacing: 1px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.75; padding: 0 4px;
+        }
+        .sep { width: 1px; height: 24px; background: rgba(255,255,255,.2); flex-shrink: 0; }
+
+        #prog-wrap { height: 3px; background: #333; flex-shrink: 0; }
+        #prog-bar  { height: 100%; background: #fff; width: 0%; transition: width .4s; }
+
+        .overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.45); z-index: 140; display: none; }
+        .overlay.open { display: block; }
+
+        .panel-header {
+            padding: 14px 16px; font-size: 0.72em; letter-spacing: 2px;
+            text-transform: uppercase; border-bottom: 1px solid var(--border, #eee); font-weight: bold;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .panel-close {
+            background: none; border: 1px solid currentColor; color: inherit;
+            font-family: inherit; font-size: 1.2em; padding: 2px 8px; line-height: 1;
+            cursor: pointer; border-radius: 3px; opacity: 0.5; transition: opacity .15s;
+        }
+        .panel-close:hover { opacity: 1; }
+
+        #font-panel, #theme-panel, #bm-panel {
+            position: absolute; top: 0; right: 0; width: 240px; height: 100%;
+            background: var(--panel); border-left: 2px solid var(--border);
+            display: flex; flex-direction: column; z-index: 200;
+            transform: translateX(100%); transition: transform .2s; overflow-y: auto;
+        }
+        #bm-panel { width: 300px; }
+        #font-panel.open, #theme-panel.open, #bm-panel.open { transform: translateX(0); }
+        
+        .fp-section, .tp-section { padding: 14px 16px; border-bottom: 1px solid var(--border, #eee); }
+        .fp-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .fp-row:last-child { margin-bottom: 0; }
+        .fp-row label { font-size: 0.78em; min-width: 68px; opacity: 0.7; }
+        .fp-row select { flex: 1; padding: 5px; border: 1px solid #ccc; font-family: inherit; font-size: 0.82em; border-radius: 2px; }
+        .fp-row input[type=range] { flex: 1; accent-color: #000; }
+        .fp-val { min-width: 32px; text-align: right; font-size: 0.8em; }
+
+        #bm-list { overflow-y: auto; flex: 1; }
+        .bm-item { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+        .bm-item:hover { background: rgba(128,128,128,0.1); }
+        .bm-text { font-size: 0.8em; flex: 1; }
+        .bm-chapter { font-size: 0.72em; opacity: 0.5; margin-top: 3px; }
+        .bm-del { background: none; border: none; cursor: pointer; opacity: 0.3; font-size: 1em; padding: 0 4px; }
+        .bm-del:hover { opacity: 0.9; color: #c00; }
+        #bm-empty { padding: 24px 16px; font-size: 0.82em; opacity: 0.4; font-style: italic; }
+
+        #main { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+        #toc-panel {
+            width: 280px; background: var(--panel); border-right: 2px solid var(--border);
+            display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+            transition: width .2s, opacity .2s;
+        }
+        #toc-panel.hidden { width: 0; opacity: 0; pointer-events: none; }
+        #toc-header { padding: 13px 16px 10px; font-size: 0.72em; letter-spacing: 2px; text-transform: uppercase; border-bottom: 1px solid var(--border, #eee); font-weight: bold; }
+        #toc-list { overflow-y: auto; flex: 1; padding: 6px 0; }
+        .toc-item {
+            display: block; padding: 8px 16px; font-size: 0.81em; cursor: pointer;
+            border-left: 3px solid transparent; color: var(--text); text-decoration: none;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .toc-item:hover { background: rgba(128,128,128,0.1); }
+        .toc-item.active { border-left-color: currentColor; font-weight: bold; background: rgba(128,128,128,0.15); }
+        .toc-item.d1 { padding-left: 28px; opacity: 0.8; }
+        .toc-item.d2 { padding-left: 40px; opacity: 0.65; }
+        #toc-empty { padding: 18px 16px; font-size: 0.8em; opacity: 0.45; font-style: italic; }
+
+        #viewer-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        #viewer { flex: 1; overflow: hidden; }
+
+        #loading { position: absolute; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; z-index: 100; font-size: 0.88em; }
+        #loading.gone { display: none; }
+        .spinner { width: 30px; height: 30px; border: 3px solid #ccc; border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #status {
+            min-height: 28px; background: #000; color: #fff;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 14px; font-size: 0.72em; letter-spacing: 0.4px;
+            flex-shrink: 0; gap: 8px; padding-bottom: env(safe-area-inset-bottom);
+        }
+        #status .s { opacity: 0.5; }
+        #status .grp { display: flex; gap: 12px; align-items: center; }
+
+        #resume-toast {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            background: #000; color: #fff; border-radius: 4px; padding: 10px 18px;
+            font-size: 0.82em; display: flex; gap: 12px; align-items: center;
+            z-index: 250; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            opacity: 0; transition: opacity .3s; pointer-events: none; white-space: nowrap;
+        }
+        #resume-toast.show { opacity: 1; pointer-events: all; }
+        #resume-toast button { background: none; border: 1px solid rgba(255,255,255,.5); color: #fff; font-family: inherit; font-size: 0.9em; padding: 3px 10px; cursor: pointer; border-radius: 3px; }
+        #resume-toast button:hover { background: #fff; color: #000; }
+
+        /* Reader component theme overrides */
+        [data-theme="dark"] #prog-wrap { background: #333; }
+        [data-theme="dark"] #prog-bar  { background: #888; }
+        [data-theme="dark"] #status    { background: #111; }
+        [data-theme="dark"] .fp-row select { background: #333; color: #e0e0e0; border-color: #555; }
+        [data-theme="dark"] .fp-row input[type=range] { accent-color: #aaa; }
+
+        [data-theme="sepia"] #status   { background: #5c4a3a; }
+        [data-theme="sepia"] #toolbar  { background: #5c4a3a; }
+        [data-theme="sepia"] #prog-wrap { background: #c4a97a; }
+        [data-theme="sepia"] #prog-bar  { background: #5c4a3a; }
+
+        [data-theme="forest"] #prog-wrap { background: #2f4a2f; }
+        [data-theme="forest"] #prog-bar  { background: #7a9e7a; }
+        [data-theme="ocean"] #prog-wrap { background: #004c99; }
+        [data-theme="ocean"] #prog-bar  { background: #66aaff; }
+        [data-theme="highcontrast"] #prog-wrap { background: #222; }
+        [data-theme="highcontrast"] #prog-bar  { background: #ffff00; }
+        [data-theme="vintage"] #prog-wrap { background: #dac0a1; }
+        [data-theme="vintage"] #prog-bar  { background: #b0906a; }
+        [data-theme="monochrome"] #prog-wrap { background: #aaa; }
+        [data-theme="monochrome"] #prog-bar  { background: #333; }
+        [data-theme="dracula"] #prog-wrap { background: #44475a; }
+        [data-theme="dracula"] #prog-bar  { background: #bd93f9; }
+        [data-theme="dracula"] #status  { background: #191a21; }
+        [data-theme="cyberpunk"] #prog-wrap { background: #1a1a2e; }
+        [data-theme="cyberpunk"] #prog-bar  { background: #ff00ff; }
+        [data-theme="cyberpunk"] #status  { background: #05050a; }
+
+        :fullscreen #toolbar, :fullscreen #prog-wrap, :fullscreen #status { display: none !important; }
+        :-webkit-full-screen #toolbar, :-webkit-full-screen #status { display: none !important; }
+
+        @media (max-width: 640px) {
+            #toc-panel { position: absolute; z-index: 150; height: 100%; }
+            #title-display { display: none; }
+            .hide-sm { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="toolbar">
+    <a href="index.html" class="btn">Back</a>
+    <div class="sep"></div>
+    <button class="btn" id="btn-toc" onclick="toggleTOC()">Contents</button>
+    <span id="title-display">Loading…</span>
+    <button class="btn" id="btn-theme" onclick="toggleTheme()">Theme</button>
+    <button class="btn" id="btn-bm-add" onclick="addBookmark()" title="Bookmark this position">Add</button>
+    <button class="btn" id="btn-bm" onclick="toggleBM()">Bookmarks</button>
+    <button class="btn" id="btn-font" onclick="toggleFont()">Aa</button>
+    <button class="btn" id="btn-fs" onclick="toggleFS()">Full</button>
+    <div class="sep"></div>
+    <button class="btn" onclick="go(-1)">‹</button>
+    <button class="btn" onclick="go(1)">›</button>
+</div>
+
+<div id="prog-wrap"><div id="prog-bar"></div></div>
+
+<div class="overlay" id="overlay" onclick="closeAllPanels()"></div>
+
+<div id="theme-panel">
+    <div class="panel-header">
+        <span>Theme</span>
+        <button class="panel-close" onclick="toggleTheme()">✕</button>
+    </div>
+    <div class="tp-section">
+        <div class="fp-row">
+            <label>Color</label>
+            <select class="theme-select-dropdown"></select>
+        </div>
+    </div>
+</div>
+
+<div id="font-panel">
+    <div class="panel-header">
+        <span>Typography</span>
+        <button class="panel-close" onclick="toggleFont()">✕</button>
+    </div>
+    <div class="fp-section">
+        <div class="fp-row">
+            <label>Font</label>
+            <select id="sel-font" onchange="applyFont()">
+                <option value="Georgia, serif">Georgia</option>
+                <option value="'Times New Roman', serif">Times New Roman</option>
+                <option value="'Palatino Linotype', serif">Palatino</option>
+                <option value="Arial, sans-serif">Arial</option>
+                <option value="Helvetica, sans-serif">Helvetica</option>
+                <option value="Verdana, sans-serif">Verdana</option>
+                <option value="Garamond, serif">Garamond</option>
+                <option value="'Courier New', monospace">Courier</option>
+            </select>
+        </div>
+        <div class="fp-row">
+            <label>Size</label>
+            <input type="range" id="sel-size" min="10" max="28" value="16" oninput="applyFont()">
+            <span class="fp-val" id="val-size">16px</span>
+        </div>
+        <div class="fp-row">
+            <label>Line Height</label>
+            <input type="range" id="sel-lh" min="12" max="30" value="17" oninput="applyFont()">
+            <span class="fp-val" id="val-lh">1.7</span>
+        </div>
+    </div>
+</div>
+
+<div id="bm-panel">
+    <div class="panel-header">
+        <span>Bookmarks</span>
+        <button class="panel-close" onclick="toggleBM()">✕</button>
+    </div>
+    <div id="bm-list">
+        <div id="bm-empty">No bookmarks yet. Press "Add" to save your position.</div>
+    </div>
+</div>
+
+<div id="main">
+    <div id="toc-panel">
+        <div id="toc-header">Contents</div>
+        <div id="toc-list"><div id="toc-empty">Loading…</div></div>
+    </div>
+    <div id="viewer-wrap">
+        <div id="loading"><div class="spinner"></div><span>Loading book…</span></div>
+        <div id="viewer"></div>
+    </div>
+</div>
+
+<div id="status">
+    <div class="grp">
+        <span><span class="s">Chapter </span><strong id="st-ch">—</strong></span>
+        <span class="hide-sm"><span class="s">Section </span><strong id="st-sec">—</strong></span>
+    </div>
+    <div class="grp">
+        <strong id="st-pct">0%</strong>
+        <span class="s">·</span>
+        <strong id="st-time">— min left</strong>
+    </div>
+</div>
+
+<div id="resume-toast">
+    <span>Resume where you left off?</span>
+    <button onclick="resumeReading()">Resume</button>
+    <button onclick="dismissToast()">✕</button>
+</div>
+
+<script src="js/jszip.min.js" defer></script>
+<script src="js/epub.min.js" defer></script>
+<script src="js/themes.js" defer></script>
+<script src="js/reader.js" defer></script>
+</body>
+</html>
