@@ -131,7 +131,7 @@
     --toolbar-fg: #93a1a1;
 }
 
-[data-theme="cyberpunk"] {
+[data-theme="futuristic"] {
     --bg: #0f0f1b;
     --text: #00ffcc;
     --accent: #1a1a2e;
@@ -141,4 +141,16 @@
     --panel: #0f0f1b;
     --toolbar: #05050a;
     --toolbar-fg: #ff00ff;
+}
+
+[data-theme="testing"] {
+    --bg: #50996370;
+    --text: #002c23;
+    --accent: #421f32;
+    --border: #ff00ff;
+    --hover-bg: #6e3c6e;
+    --hover-text: #505083;
+    --panel: #6969b4;
+    --toolbar: #05050a;
+    --toolbar-fg: #9b799b;
 }
