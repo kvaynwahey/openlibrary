@@ -128,7 +128,7 @@ ebook-convert --version
 ## 📁 Repository Structure
 
 ```
-fairytalesarchive/
+openlibrary/
 ├── books/                        # All book files (EPUB, PDF, RTF)
 │   ├── book1.epub
 │   ├── book2.pdf
